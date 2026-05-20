@@ -1,6 +1,6 @@
 # XIAO MG24 BLE Temperature Monitor
 
-A Bluetooth LE project for the [Seeed Studio XIAO MG24](https://wiki.seeedstudio.com/xiao_mg24_getting_started/) that broadcasts the chip's internal temperature every 2 seconds and displays it on a clean web page via Web Bluetooth — no app install required.
+A Bluetooth LE project for the [Seeed Studio XIAO MG24](https://wiki.seeedstudio.com/xiao_mg24_getting_started/) that broadcasts the chip's internal temperature every 3 seconds and displays it on a clean web page via Web Bluetooth — no app install required.
 
 ---
 
@@ -16,7 +16,7 @@ A Bluetooth LE project for the [Seeed Studio XIAO MG24](https://wiki.seeedstudio
 
 ## How it works
 
-The Arduino sketch runs a BLE GATT server on the XIAO MG24. Every 2 seconds it reads the chip's internal temperature with `getCPUTemp()` and sends it as a plain-text notification (e.g. `"27.50 C"`) over a custom notify characteristic. The onboard antenna is used by keeping `RF_SW_PIN` low:
+The Arduino sketch runs a BLE GATT server on the XIAO MG24. Every 3 seconds it reads the chip's internal temperature with `getCPUTemp()` and sends it as a plain-text notification (e.g. `"27.50 C"`) over a custom notify characteristic. The onboard antenna is used by keeping `RF_SW_PIN` low:
 
 ```cpp
 digitalWrite(RF_SW_PIN, LOW); // LOW = built-in antenna, HIGH = external antenna
@@ -35,7 +35,7 @@ The companion web page connects to the device via the Web Bluetooth API and disp
 | Notify characteristic UUID | `61a885a4-41c3-60d0-9a53-6d652a70d29c` |
 | LED control characteristic UUID | `5b026510-4088-c297-46d8-be6c736a087a` |
 | Notification format | Plain text, e.g. `27.50 C` |
-| Notification interval | Every 2 seconds |
+| Notification interval | Every 3 seconds |
 
 ---
 
