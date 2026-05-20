@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XIAO Temperature</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #ffffff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+
+  h1 {
+    font-size: 1rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin-bottom: 3rem;
+  }
+
+  #temp-display {
+    font-size: 7rem;
+    font-weight: 200;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: #ffffff;
+    transition: color 0.4s ease;
+  }
+
+  #temp-display.hot   { color: #f97316; }
+  #temp-display.warm  { color: #facc15; }
+  #temp-display.cool  { color: #38bdf8; }
+
+  #unit {
+    font-size: 2rem;
+    font-weight: 300;
+    color: #6b7280;
+    vertical-align: super;
+  }
+
+  #status {
+    margin-top: 2.5rem;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    color: #4b5563;
+    min-height: 1.2em;
+    text-align: center;
+  }
+
+  #status.connected { color: #22c55e; }
+  #status.error     { color: #ef4444; }
+
+  #connect-btn {
+    margin-top: 3rem;
+    padding: 0.75rem 2.5rem;
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    color: #ffffff;
+    border: 1px solid #374151;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  #connect-btn:hover  { border-color: #6b7280; color: #d1d5db; }
+  #connect-btn:active { transform: scale(0.97); }
+  #connect-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  #history {
+    margin-top: 3rem;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  #history-label {
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #374151;
+    margin-bottom: 0.75rem;
+  }
+
+  #history-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 48px;
+  }
+
+  .bar {
+    flex: 1;
+    background: #1f2937;
+    border-radius: 2px;
+    transition: height 0.3s ease, background 0.3s ease;
+    min-height: 4px;
+  }
+
+  #last-updated {
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+    color: #374151;
+    text-align: right;
+  }
+
+  #no-ble {
+    display: none;
+    margin-top: 1.5rem;
+    font-size: 0.8rem;
+    color: #ef4444;
+    text-align: center;
+    max-width: 300px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>XIAO MG24 &mdash; Internal Temperature</h1>
+
+<div id="temp-display">
+  <span id="temp-value">--</span><span id="unit">&nbsp;°C</span>
+</div>
+
+<div id="status">Tap connect to start</div>
+
+<button id="connect-btn">Connect</button>
+
+<div id="history">
+  <div id="history-label">Last 20 readings</div>
+  <div id="history-bars"></div>
+  <div id="last-updated"></div>
+</div>
+
+<div id="no-ble">
+  Web Bluetooth is not available.<br>
+  Open this page in <strong>Chrome</strong> on Android (not Firefox or Samsung Internet).
+</div>
+
+<script>
+  const SERVICE_UUID   = 'de8a5aac-a99b-c315-0c80-60d4cbb51224';
+  const NOTIFY_UUID    = '61a885a4-41c3-60d0-9a53-6d652a70d29c';
+  const DEVICE_NAME    = 'XIAO_MG24 Server';
+
+  const tempValue   = document.getElementById('temp-value');
+  const tempDisplay = document.getElementById('temp-display');
+  const status      = document.getElementById('status');
+  const btn         = document.getElementById('connect-btn');
+  const barsEl      = document.getElementById('history-bars');
+  const lastUpdEl   = document.getElementById('last-updated');
+  const noBle       = document.getElementById('no-ble');
+
+  const history = [];
+  const MAX_HISTORY = 20;
+
+  // Build bar elements once
+  for (let i = 0; i < MAX_HISTORY; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    barsEl.appendChild(bar);
+  }
+
+  if (!navigator.bluetooth) {
+    noBle.style.display = 'block';
+    btn.disabled = true;
+  }
+
+  function setStatus(msg, cls) {
+    status.textContent = msg;
+    status.className = cls || '';
+  }
+
+  function colorClass(t) {
+    if (t >= 45) return 'hot';
+    if (t >= 35) return 'warm';
+    return 'cool';
+  }
+
+  function updateBars() {
+    const bars = barsEl.querySelectorAll('.bar');
+    const min = Math.min(...history);
+    const max = Math.max(...history);
+    const range = max - min || 1;
+    history.forEach((val, i) => {
+      const pct = ((val - min) / range) * 80 + 20;
+      bars[i].style.height = pct + '%';
+      bars[i].style.background = val >= 45 ? '#f97316' : val >= 35 ? '#facc15' : '#38bdf8';
+    });
+    // blank unused bars
+    for (let i = history.length; i < MAX_HISTORY; i++) {
+      bars[i].style.height = '4px';
+      bars[i].style.background = '#1f2937';
+    }
+  }
+
+  function onNotification(event) {
+    const raw = new TextDecoder().decode(event.target.value);
+    // expects "27.50 C"
+    const match = raw.match(/([\d.]+)/);
+    if (!match) return;
+    const t = parseFloat(match[1]);
+    if (isNaN(t)) return;
+
+    tempValue.textContent = t.toFixed(1);
+    tempDisplay.className = colorClass(t);
+
+    history.push(t);
+    if (history.length > MAX_HISTORY) history.shift();
+    updateBars();
+
+    const now = new Date();
+    lastUpdEl.textContent = 'Last update: ' + now.toLocaleTimeString();
+  }
+
+  let device = null;
+
+  async function connect() {
+    try {
+      btn.disabled = true;
+      setStatus('Scanning...');
+
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ name: DEVICE_NAME }],
+        optionalServices: [SERVICE_UUID]
+      });
+
+      device.addEventListener('gattserverdisconnected', () => {
+        setStatus('Disconnected — tap to reconnect', 'error');
+        btn.textContent = 'Reconnect';
+        btn.disabled = false;
+      });
+
+      setStatus('Connecting...');
+      const server = await device.gatt.connect();
+
+      setStatus('Discovering service...');
+      const service = await server.getPrimaryService(SERVICE_UUID);
+
+      setStatus('Subscribing...');
+      const characteristic = await service.getCharacteristic(NOTIFY_UUID);
+      await characteristic.startNotifications();
+      characteristic.addEventListener('characteristicvaluechanged', onNotification);
+
+      setStatus('Connected — ' + device.name, 'connected');
+      btn.textContent = 'Disconnect';
+      btn.disabled = false;
+
+      btn.onclick = () => {
+        if (device && device.gatt.connected) {
+          device.gatt.disconnect();
+          btn.textContent = 'Connect';
+          btn.onclick = connect;
+        }
+      };
+
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    }
+  }
+
+  btn.onclick = connect;
+</script>
+</body>
+</html>
